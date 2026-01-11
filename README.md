@@ -3,11 +3,13 @@
 ## 1. THÔNG TIN CHUNG
 * **Tên Project:** Hệ thống Phân khúc Khách hàng & Gợi ý Sản phẩm Thông minh.
 * **Tên Nhóm:** [NHÓM WL]
-* **Thành viên:**
-    1. [Nguyễn Văn Vinh]
-    2. [Bạch Ngọc Lương] 
-    3. [Đỗ Văn Vinh] 
-    4. [Lại Thành Đoàn]
+## 👥 Thông tin Nhóm
+| Vai trò | Thành viên | 
+| :--- | :--- | 
+| **Leader** | [Nguyễn Văn Vinh] | 
+| **Member** | [Bạch Ngọc Lương] |
+| **Member** | [Đỗ Văn Vinh] | 
+| **Member** | [Lại Thành Đoàn] | 
 * **Chủ đề:** Ứng dụng Kỹ thuật Clustering (Phân cụm) và Association Rules (Luật kết hợp) trên dữ liệu giao dịch bán lẻ.
 
 ---
