@@ -390,12 +390,66 @@ Thay vì chỉ nhìn vào từng luật riêng lẻ ("Mua A thì mua B"), nhóm 
 
 ---
 
-## 8. TRỰC QUAN HÓA (VISUALIZATION)
-Ứng dụng Streamlit tích hợp các biểu đồ:
-* **3D Scatter Plot:** Hiển thị không gian 3 chiều của RFM.
-* **Box Plot:** So sánh sự phân bố chi tiêu giữa các cụm.
-* **Rules Scatter:** Biểu đồ quan hệ giữa Support và Confidence.
+## 📊 PHÂN TÍCH CHI TIẾT CÁC SƠ ĐỒ TRỰC QUAN HÓA
 
+## 1. Biểu đồ Phân phối Khách hàng (Bar Chart & 3D Scatter Plot)
+![Mô tả ảnh](images/trucquan1.png)
+**Mô tả:** Biểu đồ thể hiện số lượng khách hàng trong từng cụm và vị trí của họ trong không gian 3 chiều (Recency - Frequency - Monetary).
+
+### Nhận xét & Phân tích:
+
+* **Hiện tượng "Long Tail" (Đuôi dài) cực đoan:**
+    * Quan sát biểu đồ cột, ta thấy sự chênh lệch khổng lồ về quy mô: **Cluster 0 chiếm tới 96.7%** (3,789 khách), trong khi 4 cụm còn lại cộng gộp chỉ chiếm **3.3%**.
+    * > **Ý nghĩa:** Đây không phải là lỗi phân cụm, mà phản ánh đúng quy luật Pareto trong bán lẻ: Đa số khách hàng là người mua phổ thông (Cluster 0), chỉ một nhóm rất nhỏ là khách hàng đặc biệt (Cluster 1-4). Biểu đồ này cảnh báo doanh nghiệp: **Không được áp dụng một chính sách marketing cào bằng**. Nếu áp dụng chính sách VIP cho cả Cluster 0, doanh nghiệp sẽ lỗ nặng.
+
+* **Cấu trúc không gian 3D:**
+    * **Cluster 0** nằm co cụm dày đặc ở gần gốc tọa độ (giá trị R, F, M đều thấp/trung bình).
+    * **Cluster 1 (Hội Sưu tầm Thảo mộc)** tách ra khỏi đám đông không phải vì họ chi quá nhiều tiền (Monetary không quá cao), mà vì **Frequency (Tần suất)** và hành vi mua hàng theo luật đặc thù. Điểm dữ liệu của họ nằm "bay" lên phía trên trục Frequency hoặc tách biệt theo hướng của vector luật.
+
+---
+
+## 2. Biểu đồ Hộp (Boxplots) - So sánh Hành vi RFM
+![Mô tả ảnh](images/trucquan21.png)
+![Mô tả ảnh](images/trucquan22.png)
+![Mô tả ảnh](images/trucquan23.png)
+**Mô tả:** 3 biểu đồ so sánh biên độ dao động của Recency, Frequency, và Monetary giữa các cụm.
+
+### Nhận xét & Phân tích:
+
+* **Về Recency (Độ mới):**
+    * **Cluster 0** có hộp (box) trải dài nhất. Điều này cho thấy nhóm khách đại trà rất hỗn tạp: có người mới mua hôm qua, nhưng cũng có người đã "ngủ đông" cả năm trời.
+    * > **Insight:** Cần lọc tiếp trong Cluster 0 để tìm nhóm sắp rời bỏ (Churn) để gửi email níu kéo.
+    * **Cluster 1** có hộp ngắn và nằm ở vùng giá trị thấp (Recency tốt). Điều này chứng tỏ nhóm này duy trì thói quen mua sắm rất đều đặn, độ trung thành cao.
+
+* **Về Frequency & Monetary:**
+    * Xuất hiện nhiều điểm ngoại lai (Outliers - các chấm đen phía trên râu của biểu đồ hộp) ở tất cả các cụm.
+    * Tuy nhiên, trung vị (đường gạch ngang trong hộp) của **Cluster 1 cao hơn hẳn Cluster 0**. Điều này xác nhận lại rằng dù Cluster 1 ít người, nhưng "chất lượng" của từng người (sức mua, tần suất quay lại) vượt trội so với đám đông.
+
+---
+
+## 3. Biểu đồ Phân tán Luật Kết hợp (Rules Scatter Plot)
+![Mô tả ảnh](images/trucquan3.png)
+**Mô tả:** Mỗi điểm là một luật, trục hoành là Support, trục tung là Confidence, màu sắc/kích thước thể hiện Lift.
+
+### Nhận xét & Phân tích:
+
+* **Sự phân hóa hai cực (Polarization):** Biểu đồ cho thấy hai nhóm luật rõ rệt:
+    * **Nhóm "Đại trà" (Góc dưới bên phải):** Có Support cao nhưng Lift thấp (màu nhạt). Đây thường là các sản phẩm thiết yếu (Túi, Hộp). Chúng hay đi cùng nhau đơn giản vì ai cũng mua, chứ không phải vì sở thích đặc biệt.
+    * **Nhóm "Luật Vàng" (Góc trên bên trái):** Có Support thấp (< 2%) nhưng **Confidence tiệm cận 1.0 (100%)** và **Lift cực cao (> 60)** (màu đậm nổi bật).
+
+* **Mối tương quan nghịch:**
+    * Có sự đánh đổi rõ ràng: Luật nào có Lift càng cao thì Support càng thấp.
+    * > **Insight:** Không thể kỳ vọng một gói combo (Bundle) bán chạy cho toàn bộ thị trường (High Support) mà lại có độ liên kết chặt chẽ (High Lift). Doanh nghiệp phải chọn: Bán combo đại trà lợi nhuận thấp (nhóm 1) hay bán combo ngách lợi nhuận cao cho nhóm nhỏ (nhóm 2 - Herb Marker).
+
+* **Vai trò của Lift:**
+    * Nhìn vào biểu đồ màu, ta thấy các điểm có **Lift > 70** nằm tách biệt hẳn so với phần còn lại. Đây chính là cơ sở toán học vững chắc để chúng ta lọc ra "Top 82 luật vàng" ở các bước trước. Nếu không có biểu đồ này, việc chọn ngưỡng cắt (threshold) sẽ rất cảm tính.
+
+---
+
+### 💡 Tóm lại
+Hệ thống trực quan hóa này không chỉ để "cho đẹp", mà nó kể một câu chuyện nhất quán:
+
+> "Doanh nghiệp đang sống dựa trên một đám đông khách hàng phổ thông (**Cluster 0**), nhưng lợi nhuận tiềm năng và cơ hội bán chéo (Cross-sell) tốt nhất lại nằm ở những nhóm ngách nhỏ bé nhưng cực kỳ đặc thù (**Cluster 1 & Gold Rules**)."
 ---
 
 ## 9. INSIGHT KINH DOANH (QUAN TRỌNG)
@@ -426,3 +480,6 @@ Dựa trên dữ liệu, chúng tôi rút ra 5 kết luận kinh doanh quan tr�
 
 ## 10. KẾT LUẬN
 Dự án đã thành công trong việc chuyển đổi dữ liệu thô thành tri thức kinh doanh. Hệ thống Dashboard giúp bộ phận Marketing không cần biết code vẫn có thể tra cứu xem khách hàng nào cần chăm sóc và sản phẩm nào nên bán kèm, từ đó tối ưu hóa doanh thu cho doanh nghiệp.
+## 11. Link repo & slide:
+* Link repo :
+* Link trang web : 
