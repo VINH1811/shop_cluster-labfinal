@@ -341,15 +341,52 @@ Giao diện Streamlit :
 
 ## 7. YÊU CẦU NÂNG CAO (ADVANCED)
 
-Để nâng cao chất lượng bài làm, nhóm đã thực hiện 2 hướng mở rộng:
+### 1. So sánh các mô hình phân cụm (Clustering Comparison)
 
-1.  **So sánh Mô hình (Model Comparison):**
-    * So sánh **K-Means** vs **Agglomerative Clustering** vs **DBSCAN**.
-    * **Kết quả:** Agglomerative Clustering cho chỉ số Silhouette cao nhất (**0.54** so với -0.32 của K-Means), chứng tỏ khả năng phân tách cụm tốt hơn trên tập dữ liệu này.
+Để đánh giá hiệu quả và tìm ra phương pháp tối ưu nhất, nhóm đã tiến hành so sánh **K-Means** (mô hình hiện tại) với hai thuật toán khác là **Agglomerative Clustering** (Phân cụm phân cấp) và **DBSCAN** (Phân cụm dựa trên mật độ) trên cùng tập dữ liệu RFM.
 
-2.  **Phân cụm Luật (Rules Clustering):**
-    * Sử dụng K-Means để gom nhóm 1,794 luật dựa trên `Support, Confidence, Lift`.
-    * **Kết quả:** Tìm ra **"Nhóm Luật Vàng" (Gold Cluster)** gồm **82 luật** có Lift trung bình > 60. Đây là những "công thức kiếm tiền" tốt nhất để tạo combo sản phẩm.
+#### Bảng so sánh chỉ số đánh giá:
+
+| Mô hình | Silhouette Score (Cao hơn là tốt) | Davies-Bouldin (Thấp hơn là tốt) | Calinski-Harabasz (Cao hơn là tốt) | Số cụm (K) |
+| :--- | :---: | :---: | :---: | :---: |
+| **K-Means (Baseline)** | -0.32 | 19.98 | 5.39 | 5 |
+| **Agglomerative** | **0.54** | **0.82** | **5792.81** | **5** |
+| **DBSCAN** | 0.71 | 1.02 | 243.97 | 2 |
+
+#### 🔍 Nhận xét & Đánh giá mức độ "Actionable":
+
+**K-Means (Kết quả hiện tại):**
+    * Có chỉ số Silhouette âm (**-0.32**). Điều này khá lạ và thường báo hiệu việc gán nhãn bị sai, dữ liệu quá nhiễu hoặc các cụm bị chồng lấn (overlapping) quá nhiều.
+    * *Nguyên nhân:* Có thể do tập dữ liệu có các điểm ngoại lai (outliers) quá lớn khiến trung tâm cụm bị kéo lệch, làm giảm độ chính xác của thuật toán dựa trên khoảng cách trung bình này.
+
+**Agglomerative Clustering (Khuyên dùng - Ngôi sao sáng):**
+    * **Metric:** Silhouette dương và cao (**0.54**), chỉ số Davies-Bouldin rất thấp (**0.82**). Điều này chứng tỏ các cụm được tách biệt rất rõ ràng và gọn gàng.
+    * **Actionable:** Với $K=5$, mô hình này phân chia khách hàng thành các nhóm có ranh giới rõ ràng hơn hẳn K-Means. Đây là ứng cử viên sáng giá nhất để thay thế mô hình hiện tại trong tương lai.
+
+**DBSCAN:**
+    * **Metric:** Silhouette cao nhất (**0.71**) nhưng chỉ tìm ra **2 cụm** (1 cụm chính và 1 cụm nhiễu - Noise).
+    * **Actionable (Thấp):** DBSCAN thường gom toàn bộ khách hàng "bình thường" vào 1 cụm khổng lồ và đẩy tất cả khách VIP/dị biệt ra làm nhiễu. Về mặt marketing, việc chỉ có 1 nhóm khách hàng lớn là không có giá trị phân loại để chăm sóc riêng biệt.
+
+---
+
+### 2. Mở rộng: Phân cụm Luật kết hợp (Rule Clustering)
+
+Thay vì chỉ nhìn vào từng luật riêng lẻ ("Mua A thì mua B"), nhóm đã thử nghiệm hướng tiếp cận mới: **Gom nhóm 1,794 luật kết hợp** thành 3 nhóm lớn dựa trên đặc tính số học của chúng (Support, Confidence, Lift).
+
+#### Kết quả phân nhóm luật:
+
+| Nhóm Luật (Cluster) | Số lượng | Đặc điểm (Trung bình) | Ý nghĩa Marketing |
+| :--- | :---: | :--- | :--- |
+| **Nhóm 0: Luật "Tiềm năng"** | 744 luật | Conf: 65% - Lift: 14 | Các combo sản phẩm này có độ tin cậy khá, sức mua trung bình. Dùng để **Cross-sell đại trà** trên website. |
+| **Nhóm 1: Luật "Phổ thông"** | 968 luật | Conf: 42% - Lift: 8.7 | Độ tin cậy thấp hơn, nhưng số lượng luật rất nhiều. Đây là các cặp sản phẩm ngẫu nhiên hơn. Dùng để gợi ý **"Có thể bạn cũng thích"** ở trang Checkout. |
+| **Nhóm 2: Luật "Vàng" (Gold)** | **82 luật** | **Conf: 87% - Lift: 63** | **Cực kỳ mạnh!** Khách mua A gần như chắc chắn mua B. Sức mạnh liên kết (Lift) gấp 63 lần ngẫu nhiên. Dùng để tạo **Combo đóng gói sẵn (Bundle)** để bán ngay lập tức. |
+
+#### 💡 Kết luận - Góc nhìn nào hữu ích hơn?
+
+**Phân cụm khách hàng (RFM):** Giúp trả lời câu hỏi **"Chăm sóc ai?"** (Ai là VIP cần giữ chân, ai sắp rời bỏ cần lôi kéo).
+**Phân cụm Luật (Rules):** Giúp trả lời câu hỏi **"Bán cái gì?"** (Sản phẩm nào nên đi đôi với nhau trên kệ hàng).
+
+> **Tổng kết:** Với bán lẻ, **Phân cụm Luật (Rule Clustering)** thường mang lại tác động doanh số *tức thì* hơn (thông qua việc sắp xếp lại kệ hàng hoặc tạo combo), trong khi **Phân cụm khách hàng** mang tính chiến lược dài hạn về thương hiệu và lòng trung thành.
 
 ---
 
