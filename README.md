@@ -481,5 +481,5 @@ Dựa trên dữ liệu, chúng tôi rút ra 5 kết luận kinh doanh quan tr�
 ## 10. KẾT LUẬN
 Dự án đã thành công trong việc chuyển đổi dữ liệu thô thành tri thức kinh doanh. Hệ thống Dashboard giúp bộ phận Marketing không cần biết code vẫn có thể tra cứu xem khách hàng nào cần chăm sóc và sản phẩm nào nên bán kèm, từ đó tối ưu hóa doanh thu cho doanh nghiệp.
 ## 11. Link repo & slide:
-* Link repo :
-* Link trang web : 
+* Link repo : https://github.com/VINH1811/shop_cluster-labfinal.git
+* Link trang web : https://vinh1811.github.io/Datamining-Web/
