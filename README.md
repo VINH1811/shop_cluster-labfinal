@@ -337,7 +337,7 @@ Mô hình phân cụm đã giúp doanh nghiệp không chỉ nhìn thấy bức 
 * **Với nhóm 100 khách hàng (Cluster 1):** Cần tách riêng để chăm sóc biệt đãi bằng các sản phẩm làm vườn cao cấp. Đây là nhóm khách hàng trung thành tiềm năng nhất.
 * **Với 3,700 khách hàng còn lại (Cluster 0):** Tiếp tục áp dụng các chiến lược bán lẻ đại chúng, tự động hóa marketing để duy trì dòng tiền ổn định.
 ### Q7: Diễn giải kết quả (Interpretation)
-Giao diện Streamlit : 
+Giao diện Streamlit : https://shopcluster-labfinal-r3kge9keugmvkmkymczybl.streamlit.app/
 
 ## 7. YÊU CẦU NÂNG CAO (ADVANCED)
 
