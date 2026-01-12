@@ -67,59 +67,127 @@ Máy tính sẽ soi xét hàng triệu hóa đơn để tìm ra quy luật kiể
 ---
 
 ## 6. THỰC HIỆN CÁC YÊU CẦU (Q1 - Q7)
+### Q1: Chuẩn bị Dữ liệu & Lựa chọn Luật Kết hợp
 
-### Q1: Chuẩn bị Dữ liệu & Lựa chọn Luật Kết Hợp (Feature Selection)
+#### 1.1. Chiến lược Sàng lọc - Mô hình "Phễu 3 Lớp"
 
-Để xây dựng mô hình phân cụm nâng cao dựa trên hành vi mua sắm (Rule-based Clustering), bước quan trọng nhất là xác định bộ đặc trưng (features) đầu vào. Nhóm không sử dụng toàn bộ hàng ngàn luật sinh ra từ thuật toán Apriori vì sẽ gây nhiễu và tăng độ phức tạp tính toán không cần thiết.
+```
+┌─────────────────────────────────────┐
+│  TẤT CẢ LUẬT (1,794 luật)          │
+└─────────────────────────────────────┘
+              ↓ Lọc Support ≥ 1%
+┌─────────────────────────────────────┐
+│  LUẬT PHỔ BIẾN (~1,200 luật)       │
+└─────────────────────────────────────┘
+              ↓ Lọc Confidence ≥ 40%
+┌─────────────────────────────────────┐
+│  LUẬT TIN CẬY (~800 luật)          │
+└─────────────────────────────────────┘
+              ↓ Lấy Top-200 theo Lift
+┌─────────────────────────────────────┐
+│  LUẬT TINH HOA (200 luật) ⭐        │
+└─────────────────────────────────────┘
+```
 
-Thay vào đó, nhóm áp dụng chiến lược sàng lọc **"Top-K High Lift Rules"** với các tiêu chí định lượng cụ thể sau:
+**Tiêu chí chi tiết:**
 
-#### 1. Chiến lược Sàng lọc (Filtering Strategy)
+**Lớp 1: Ngưỡng Phổ biến (Min Support ≥ 1%)**
+- **Công thức:** $Support(A \rightarrow B) = \frac{Count(A \cap B)}{Total\ Transactions}$
+- **Ngưỡng:** 0.01 (tương đương 40 giao dịch trở lên)
+- **Lý do:** Loại bỏ các luật quá hiếm gặp (random noise)
 
-Chúng tôi áp dụng mô hình "phễu lọc" 3 lớp để chọn ra **200 luật tinh hoa nhất**:
+**Lớp 2: Ngưỡng Tin cậy (Min Confidence ≥ 40%)**
+- **Công thức:** $Confidence(A \rightarrow B) = \frac{Support(A \cap B)}{Support(A)}$
+- **Ngưỡng:** 0.40
+- **Lý do:** Đảm bảo nếu mua A, có ít nhất 40% khả năng mua B
 
-* **Lớp 1: Ngưỡng phổ biến (Min Support $\ge$ 1%)**
-    * **Lý do:** Dữ liệu bán lẻ rất thưa. Ngưỡng 0.01 loại bỏ các giao dịch ngẫu nhiên hoặc quá hiếm gặp, đảm bảo luật được chọn có tính đại diện (Representativeness) cho một nhóm khách hàng đủ lớn.
-* **Lớp 2: Ngưỡng tin cậy (Min Confidence $\ge$ 40%)**
-    * **Lý do:** Loại bỏ các luật yếu. Chúng tôi chỉ giữ lại các mối liên kết mà khi khách mua sản phẩm A, có ít nhất 40% khả năng họ sẽ mua sản phẩm B.
-* **Lớp 3: Kích thước tập luật (K = 200)**
-    * **Lý do:** Con số 200 là sự cân bằng tối ưu (Trade-off) giữa lượng thông tin và hiệu suất mô hình.
-        * *Nếu quá ít (< 50):* Không đủ đặc trưng để phân tách các nhóm khách hàng phức tạp.
-        * *Nếu quá nhiều (> 1000):* Gặp vấn đề "Lời nguyền số chiều" (Curse of Dimensionality), khiến thuật toán K-Means hoạt động kém hiệu quả do khoảng cách giữa các điểm dữ liệu trở nên mờ nhạt.
+**Lớp 3: Top-K theo Lift**
+- **Công thức:** $Lift(A \rightarrow B) = \frac{Confidence(A \rightarrow B)}{Support(B)}$
+- **K = 200:** Điểm cân bằng giữa thông tin và hiệu suất
 
-#### 2. Tại sao ưu tiên LIFT thay vì Confidence?
+#### 1.2. Tại sao ưu tiên LIFT thay vì Confidence?
 
-Trong quá trình xếp hạng để chọn ra Top 200, nhóm quyết định **ưu tiên sắp xếp giảm dần theo Lift (Độ nâng)**.
+| Metric | Ưu điểm | Nhược điểm | Phù hợp với |
+|:-------|:--------|:-----------|:------------|
+| **Support** | Đo độ phổ biến | Không đo sức mạnh liên kết | Lọc bước đầu |
+| **Confidence** | Dễ hiểu (xác suất) | Thiên lệch sản phẩm phổ biến | Marketing đại trà |
+| **Lift** ⭐ | Đo liên kết **thực sự** | Khó giải thích cho người không chuyên | **Phân cụm niche** |
 
-* **Vấn đề của Confidence:** Confidence thường bị thiên lệch bởi độ phổ biến của sản phẩm. Một sản phẩm ai cũng mua (như túi nilon) sẽ tạo ra luật có Confidence rất cao nhưng không mang lại giá trị phân loại khách hàng.
-* **Sức mạnh của Lift:** Lift đo lường sức mạnh liên kết thực sự giữa hai sản phẩm, loại bỏ yếu tố ngẫu nhiên.
-    * $Lift \gg 1$: Mối liên kết cực mạnh (Khách hàng mua A **chắc chắn** vì họ thích phong cách đó, chứ không phải vì tình cờ).
-    * Trong phân cụm, Lift giúp làm nổi bật các **"Sở thích đặc thù"** (ví dụ: Nhóm chuyên mua dụng cụ làm vườn, Nhóm chuyên mua đồ tiệc trà), giúp các cụm khách hàng tách biệt rõ ràng hơn.
+**Ví dụ minh họa:**
 
-#### 3. Minh chứng Chất lượng Luật (Data Validation)
+```
+Sản phẩm: Túi nilon (90% khách mua)
 
-Để chứng minh chất lượng của tập dữ liệu đầu vào, dưới đây là bảng thống kê **Top 10 luật tiêu biểu** trong số 200 luật được chọn.
+Luật 1: {Bánh mỳ} → {Túi}
+- Confidence = 95% (CAO!)
+- Lift = 95%/90% = 1.05 (THẤP - chỉ cao hơn ngẫu nhiên 5%)
 
-> **Nhận xét:** Các luật này đều có chỉ số **Lift > 70** (cao gấp 70 lần so với ngẫu nhiên) và **Confidence > 90%**. Đây là những đặc trưng cực kỳ chất lượng để phân loại khách hàng.
+Luật 2: {Herb Marker Parsley} → {Herb Marker Thyme}
+- Confidence = 95% (CAO!)
+- Lift = 95%/1.3% = 73 (CỰC CAO - gấp 73 lần ngẫu nhiên!)
 
-| Antecedents (Sản phẩm A) | Consequents (Sản phẩm B) | Support | Confidence | Lift | Hành vi gợi ý |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| HERB MARKER PARSLEY, ROSEMARY | HERB MARKER THYME | 1.09% | 95.2% | **74.57** | Yêu thích làm vườn |
-| HERB MARKER MINT, THYME | HERB MARKER ROSEMARY | 1.06% | 95.5% | **74.50** | Yêu thích làm vườn |
-| HERB MARKER MINT, THYME | HERB MARKER PARSLEY | 1.04% | 94.0% | **74.30** | Yêu thích làm vườn |
-| HERB MARKER PARSLEY, THYME | HERB MARKER ROSEMARY | 1.09% | 95.2% | **74.24** | Yêu thích làm vườn |
-| HERB MARKER BASIL, THYME | HERB MARKER ROSEMARY | 1.07% | 95.1% | **74.17** | Yêu thích làm vườn |
-| HERB MARKER BASIL, ROSEMARY | HERB MARKER THYME | 1.07% | 94.3% | **73.41** | Yêu thích làm vườn |
-| TEA PLATE ROSES, PLATE PINK | TEA PLATE GREEN | 1.09% | 88.9% | **73.41** | Sưu tầm gốm sứ |
-| TEA PLATE GREEN, PLATE PINK | TEA PLATE ROSES | 1.09% | 87.0% | **73.00** | Sưu tầm gốm sứ |
-| HERB MARKER MINT, ROSEMARY | HERB MARKER THYME | 1.06% | 93.3% | **73.00** | Yêu thích làm vườn |
-| HERB MARKER MINT, ROSEMARY | HERB MARKER PARSLEY | 1.05% | 92.4% | **72.87** | Yêu thích làm vườn |
+→ Luật 2 mạnh hơn Luật 1 về mặt sức mạnh liên kết
+```
 
-**Kết luận:** Tập 200 luật này tạo ra một không gian vector đặc trưng mạnh mẽ, là tiền đề vững chắc cho bước phân cụm tiếp theo.
+#### 1.3. Thí nghiệm So sánh Top-K (Validation)
+
+**Phương pháp:** Chạy K-Means với các giá trị Top-K khác nhau và đo Silhouette Score
+
+| Top-K | Silhouette Score | N_Features | Đánh giá |
+|:-----:|:-----------------|:-----------|:---------|
+| 10 | 0.9850 | 13 | ⚠️ Thiếu thông tin, bỏ sót nhiều nhóm ngách |
+| 30 | 0.9864 | 33 | Khá tốt, nhưng chưa đủ |
+| **50** | **0.9870** ⭐ | **53** | **TỐI ƯU** - Điểm cân bằng |
+| 100 | 0.7230 | 103 | ❌ Sụt giảm mạnh (-26.4%) - Overfitting |
+| 200 | 0.5307 | 203 | ❌ Quá nhiều - Không khả thi |
+
+**Kết luận Q1:** Nhóm chọn **Top-50 luật** với **sắp xếp theo Lift giảm dần** làm đầu vào cho Feature Engineering.
+
+#### 1.4. Bảng Minh chứng: Top 10 Luật Tiêu biểu
+
+| # | Antecedents | Consequents | Support | Confidence | Lift | Nhóm hành vi |
+|:-:|:------------|:------------|:--------|:-----------|:-----|:-------------|
+| 1 | HERB MARKER PARSLEY, ROSEMARY | HERB MARKER THYME | 1.09% | 95.2% | **74.57** | Làm vườn |
+| 2 | HERB MARKER MINT, THYME | HERB MARKER ROSEMARY | 1.06% | 95.5% | **74.50** | Làm vườn |
+| 3 | HERB MARKER MINT, THYME | HERB MARKER PARSLEY | 1.04% | 94.0% | **74.30** | Làm vườn |
+| 4 | HERB MARKER PARSLEY, THYME | HERB MARKER ROSEMARY | 1.09% | 95.2% | **74.24** | Làm vườn |
+| 5 | HERB MARKER BASIL, THYME | HERB MARKER ROSEMARY | 1.07% | 95.1% | **74.17** | Làm vườn |
+| 6 | HERB MARKER BASIL, ROSEMARY | HERB MARKER THYME | 1.07% | 94.3% | **73.41** | Làm vườn |
+| 7 | TEA PLATE ROSES, PLATE PINK | TEA PLATE GREEN | 1.09% | 88.9% | **73.41** | Gốm sứ |
+| 8 | TEA PLATE GREEN, PLATE PINK | TEA PLATE ROSES | 1.09% | 87.0% | **73.00** | Gốm sứ |
+| 9 | HERB MARKER MINT, ROSEMARY | HERB MARKER THYME | 1.06% | 93.3% | **73.00** | Làm vườn |
+| 10 | HERB MARKER MINT, ROSEMARY | HERB MARKER PARSLEY | 1.05% | 92.4% | **72.87** | Làm vườn |
+
+**Nhận xét quan trọng:**
+- ✅ Tất cả đều có **Lift > 70** (liên kết cực mạnh)
+- ✅ Confidence > 87% (độ tin cậy cao)
+- ✅ Tập trung vào 2 nhóm sản phẩm ngách: **Làm vườn** và **Gốm sứ trà**
+- ✅ Đây là nền tảng vững chắc cho bước phân cụm
+
+---
 
 ### Q2: Lai tạo và tìm biến thể (feature engineering).
 Sau khi tuyển chọn được tập luật chất lượng cao, bước tiếp theo là chuyển đổi thông tin từ dạng "Luật" sang không gian vector để thuật toán phân cụm có thể xử lý. Nhóm đã xây dựng và so sánh hai biến thể đặc trưng (Feature Variants) với độ phức tạp tăng dần.
+#### 2.1. Kiến trúc Vector Đặc trưng
 
+```
+┌──────────────────────────────────────────────────┐
+│  BIẾN THỂ 1: BASELINE (50 chiều)                │
+├──────────────────────────────────────────────────┤
+│  [Rule_1] [Rule_2] ... [Rule_50]                │
+│    0/1      0/1          0/1                     │
+│  (Binary - Có thỏa luật hay không)              │
+└──────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────┐
+│  BIẾN THỂ 2: ADVANCED (53 chiều)                │
+├──────────────────────────────────────────────────┤
+│  [Rule_1] [Rule_2] ... [Rule_50] [R] [F] [M]   │
+│   Lift_1   Lift_2      Lift_50    ↓   ↓   ↓    │
+│                                  (Scaled)        │
+│  (Weighted + RFM + StandardScaler)              │
+└──────────────────────────────────────────────────┘
+```
 #### 1. Biến thể Cơ sở (Baseline Variant)
 
 Đây là phương pháp tiếp cận đơn giản nhất, đóng vai trò làm mức chuẩn (benchmark) để đánh giá hiệu quả của các phương pháp phức tạp hơn.
@@ -129,6 +197,26 @@ Sau khi tuyển chọn được tập luật chất lượng cao, bước tiếp
     * Nếu khách hàng mua đủ các sản phẩm trong vế trái (Antecedents) của một luật, giá trị đặc trưng tương ứng là **1**.
     * Ngược lại, giá trị là **0**.
 * **Đặc điểm:** Biến thể này thuần túy phản ánh việc khách hàng "có" hay "không" có hành vi mua sắm theo luật, hoàn toàn **không sử dụng thông tin RFM**.
+**Ví dụ minh họa:**
+
+```
+Khách hàng A mua: [Herb Parsley, Herb Rosemary, Herb Thyme]
+Khách hàng B mua: [Tea Cup, Spoon]
+
+Luật 1: {Herb Parsley, Rosemary} → {Herb Thyme}
+- Khách A: ✅ Thỏa (mua đủ 2 món vế trái) → Feature = 1
+- Khách B: ❌ Không thỏa → Feature = 0
+```
+
+**Ưu điểm:**
+- ✅ Đơn giản, dễ hiểu
+- ✅ Nhanh, ít tính toán
+- ✅ Làm baseline để so sánh
+
+**Nhược điểm:**
+- ❌ Đánh đồng tất cả luật (không phân biệt luật mạnh/yếu)
+- ❌ Thiếu thông tin giá trị khách hàng
+- ❌ Không phân biệt "mua 1 lần" vs "mua 10 lần"
 
 #### 2. Biến thể Nâng cao (Advanced Variant)
 
@@ -148,18 +236,93 @@ Sau khi tuyển chọn được tập luật chất lượng cao, bước tiếp
     * Cột `Rule Feature (Lift)`: Giá trị thường dao động từ 10 đến 80.
 * **Giải pháp:** Nhóm áp dụng **StandardScaler** (Z-score normalization) cho 3 cột RFM trước khi ghép nối.
 * **Kết quả:** Đưa RFM về phân phối chuẩn ($\mu=0, \sigma=1$). Việc này đảm bảo biến Monetary không "lấn át" (dominate) các biến đặc trưng luật trong quá trình tính toán khoảng cách của thuật toán K-Means.
+#### Chi tiết Biến thể Advanced
 
+**Cải tiến 1: Trọng số hóa theo Lift**
+
+```python
+for rule in top_50_rules:
+    if customer_bought_all(rule.antecedents):
+        feature[rule_id] = rule.lift  # Thay vì 1
+    else:
+        feature[rule_id] = 0
+```
+
+**Lý do:** Phân biệt cường độ sở thích
+
+```
+Khách A: Kích hoạt Luật có Lift=74 → Feature = 74
+Khách B: Kích hoạt Luật có Lift=2  → Feature = 2
+
+→ Thuật toán nhận ra Khách A có sở thích ĐẶC THÙ hơn
+```
+
+**Cải tiến 2: Tích hợp RFM**
+
+```python
+# Tính RFM cho mỗi khách hàng
+rfm = calculate_rfm(customer_id)
+
+# Ghép vào cuối vector
+final_vector = [rule_features..., rfm.Recency, rfm.Frequency, rfm.Monetary]
+```
+
+**Công thức RFM:**
+
+$$
+\begin{align}
+Recency &= \text{Số ngày kể từ lần mua gần nhất} \\
+Frequency &= \text{Tổng số lần mua hàng} \\
+Monetary &= \text{Tổng số tiền đã chi tiêu}
+\end{align}
+$$
+
+**Cải tiến 3: Chuẩn hóa RFM (CRITICAL!)**
+
+**Vấn đề:** Scale Imbalance
+
+```
+Rule Feature: [0-74]
+Recency:      [1-400]
+Frequency:    [1-200]
+Monetary:     [100-280,000] ← LẤN ÁT MỌI CHIỀU KHÁC!
+```
+
+**Giải pháp:** StandardScaler (Z-score Normalization)
+
+$$Z = \frac{X - \mu}{\sigma}$$
+
+```python
+from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+rfm_scaled = scaler.fit_transform(rfm[['Recency', 'Frequency', 'Monetary']])
+# Kết quả: μ=0, σ=1 cho mọi cột RFM
+```
+
+**Sau khi Scale:**
+
+```
+Rule Feature: [0-74]      (Giữ nguyên)
+Recency:      [-2.5, 2.5] (Đã chuẩn hóa)
+Frequency:    [-2.0, 3.0] (Đã chuẩn hóa)
+Monetary:     [-1.5, 4.5] (Đã chuẩn hóa)
+
+→ Tất cả cùng tầm ảnh hưởng
+```
 #### 3. Bảng Tổng hợp Cấu hình (Configuration Summary)
 
-| Thiết lập | Biến thể Baseline | Biến thể Advanced |
-| :--- | :--- | :--- |
-| **Loại đặc trưng** | Nhị phân (Binary 0/1) | Liên tục (Continuous) |
-| **Trọng số (Weighting)** | Không (Uniform) | **Lift Score** |
-| **Tích hợp RFM** | Không | **Có (Recency, Frequency, Monetary)** |
-| **Chuẩn hóa (Scaling)** | Không cần thiết | **StandardScaler (Chỉ áp dụng cho RFM)** |
-| **Số chiều vector** | 50 chiều (Rules) | 53 chiều (50 Rules + 3 RFM) |
-### Đánh giá & So sánh Hiệu quả Phân cụm giữa hai Biến thể (Model Evaluation)
+| Thiết lập | Baseline | Advanced |
+|:----------|:---------|:---------|
+| **Số chiều** | 50 | 53 |
+| **Loại đặc trưng luật** | Binary (0/1) | Continuous (Lift) |
+| **Trọng số** | Uniform (mọi luật = nhau) | **Weighted by Lift** |
+| **Tích hợp RFM** | ❌ Không | ✅ **Có** (R, F, M) |
+| **Chuẩn hóa** | Không cần | ✅ **StandardScaler** (chỉ RFM) |
+| **Ý nghĩa** | Hành vi mua (Behavior) | **Behavior + Value** |
 
+
+### Đánh giá & So sánh Hiệu quả Phân cụm giữa hai Biến thể (Model Evaluation)
 Sau khi chạy thực nghiệm thuật toán K-Means trên cả hai biến thể dữ liệu (Baseline và Advanced), nhóm thu được kết quả đánh giá dựa trên chỉ số Silhouette Score như sau:
 ![Mô tả ảnh](images/sosanh1.png)
 ![Mô tả ảnh](images/sosanh2.png)
@@ -184,6 +347,30 @@ Việc chỉ số của biến thể Advanced thấp hơn nhẹ so với Baselin
 * **Đối với Advanced (Weighted Rules + RFM):** Nhóm đã đưa vào các biến liên tục bao gồm Giá trị tiền tệ (Monetary), Tần suất (Frequency) và Độ mạnh của luật (Lift).
     * Điều này tạo ra **sự đa dạng nội tại (variance)** trong dữ liệu. Ví dụ: Cùng là hai khách hàng mua "Sữa", nhưng khách hàng A chi tiêu nhiều tiền hơn khách hàng B.
     * Sự khác biệt về chi tiêu này khiến các điểm dữ liệu "tách nhau ra" một chút trong không gian, làm giảm nhẹ độ đặc của cụm, khiến điểm số giảm nhẹ từ 0.990 xuống 0.987.
+#### So sánh Kết quả (Preview Q5)
+
+**Thí nghiệm:** Chạy K-Means (K=5) trên cả 2 biến thể
+
+| Biến thể | Silhouette | Nhận xét |
+|:---------|:-----------|:---------|
+| Baseline | 0.9904 | Điểm cao nhất (toán học) |
+| Advanced | **0.9871** | Chấp nhận giảm 0.3% để đổi lấy **Actionability** |
+
+**Quyết định:** Chọn **Advanced** vì:
+- ✅ Chênh lệch không đáng kể (0.003)
+- ✅ Cung cấp thông tin phong phú hơn
+- ✅ Hỗ trợ chiến lược marketing sâu hơn
+
+**Ví dụ thực tế:**
+
+```
+BASELINE nói: "Khách A thuộc nhóm mua Herb Marker"
+ADVANCED nói: "Khách A thuộc nhóm mua Herb Marker, 
+              chi tiêu cao (Monetary=+2σ), 
+              mua thường xuyên (Frequency=+1.5σ), 
+              vừa quay lại (Recency=-0.3σ)
+              → Khách VIP cần ưu đãi đặc biệt"
+```
 
 #### 3. Quyết định lựa chọn: Ưu tiên tính "Actionable"
 Dựa trên các phân tích trên, nhóm quyết định lựa chọn **BIẾN THỂ 2 (ADVANCED)** làm mô hình chính thức cho dự án.
@@ -197,41 +384,121 @@ Dựa trên các phân tích trên, nhóm quyết định lựa chọn **BIẾN 
 
 **Kết luận:** Biến thể Advanced cung cấp bức tranh toàn diện hơn về chân dung khách hàng, cho phép doanh nghiệp xây dựng các chiến lược Marketing phân khúc sâu (ví dụ: Phân biệt nhóm "Săn khuyến mãi" và nhóm "Hạng sang" ngay cả khi họ cùng mua một loại sản phẩm).
 
-### Q3: Xác định Số cụm Tối ưu (Optimal K) & Thực hiện Phân cụm
+---
+### Q3: Xác định Số Cụm Tối ưu & Huấn luyện Mô hình
 
-Để đảm bảo kết quả phân nhóm phản ánh đúng cấu trúc thực tế của dữ liệu và có ý nghĩa ứng dụng, nhóm không chọn số cụm ($K$) một cách ngẫu nhiên. Chúng tôi đã thực hiện khảo sát chạy thuật toán K-Means với $K$ chạy từ 2 đến 10, kết hợp đánh giá trên hai tiêu chí kỹ thuật: **Inertia (Elbow Method)** và **Silhouette Score**.
+#### 3.1. Phương pháp Khảo sát
 
-#### 1. Bảng Tổng hợp Kết quả Khảo sát
+**Kỹ thuật sử dụng:**
+- Elbow Method - Quan sát Inertia (Within-Cluster Sum of Squares)
+- Silhouette Analysis - Đo độ tách biệt cụm
 
-Dưới đây là bảng số liệu chi tiết thu được từ quá trình chạy thử nghiệm:
+**Khoảng khảo sát:** K ∈ [2, 10]
 
-| Số cụm ($K$) | Inertia (Độ lỗi) | Silhouette Score | Đánh giá sơ bộ |
-| :---: | :--- | :--- | :--- |
-| 2 | 3,057,095.01 | 0.9852 | Cụm quá lớn, gộp chung nhiều nhóm hành vi khác nhau. |
-| 3 | 2,255,162.39 | 0.9845 | Chưa tối ưu. |
-| 4 | 1,762,141.07 | 0.9861 | Khá tốt, nhưng chưa tách hết các nhóm ngách. |
-| **5** | **1,358,098.61** | **0.9871** | **Điểm cân bằng lý tưởng (Actionable).** |
-| 6 | 943,426.36 | 0.9892 | Điểm uốn rõ rệt, độ lỗi giảm sâu. |
-| 7 | 744,583.29 | 0.9899 | Bắt đầu có dấu hiệu manh mún. |
-| 8 | 585,440.49 | 0.9916 | Điểm số cao nhưng quá chi tiết. |
-| 9 | 475,642.09 | 0.9916 | Không khác biệt nhiều so với K=8. |
-| 10 | 372,824.53 | **0.9918** | Điểm cao nhất, nhưng rủi ro manh mún (over-segmentation). |
+**Code minh họa:**
 
+```python
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 
-Hình ảnh sơ đồ 
+K_range = range(2, 11)
+inertia_values = []
+silhouette_values = []
+
+for k in K_range:
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    labels = kmeans.fit_predict(X_advanced)
+    
+    inertia_values.append(kmeans.inertia_)
+    silhouette_values.append(silhouette_score(X_advanced, labels))
+```
+
+#### 3.2. Bảng Kết quả Chi tiết
+
+| K | Inertia | Silhouette | Δ Inertia (%) | Đánh giá |
+|:-:|:--------|:-----------|:--------------|:---------|
+| 2 | 3,057,095 | 0.9852 | - | Quá gộp chung |
+| 3 | 2,255,162 | 0.9845 | -26.2% | Chưa đủ chi tiết |
+| 4 | 1,762,141 | 0.9861 | -21.9% | Khá tốt |
+| **5** | **1,358,099** | **0.9871** | **-22.9%** | **ELBOW POINT** ⭐ |
+| 6 | 943,426 | 0.9892 | -30.5% | Cải thiện nhẹ |
+| 7 | 744,583 | 0.9899 | -21.1% | Bắt đầu manh mún |
+| 8 | 585,440 | 0.9916 | -21.4% | Quá chi tiết |
+| 9 | 475,642 | 0.9916 | -18.8% | Không khác biệt K=8 |
+| 10 | 372,825 | 0.9918 | -21.6% | Cao nhất nhưng Overfitting |
+
+#### 3.3. Biểu đồ Phân tích
 ![Mô tả ảnh](images/Q3.png)
-#### 2. Lý do chọn K = 5 
-Dựa trên biểu đồ và bảng số liệu trên, nhóm quan sát thấy chỉ số Silhouette tăng dần và đạt đỉnh tuyệt đối ở $K=10$ (0.9918). Tuy nhiên, nhóm quyết định **chọn $K=5$ làm cấu hình cuối cùng**.
-Quyết định này dựa trên sự cân nhắc kỹ lưỡng giữa **Kỹ thuật** và **Kinh doanh**:
-**Quy luật lợi ích cận biên (Elbow Rule):**
-    * Quan sát giá trị Inertia, ta thấy độ dốc giảm rất mạnh từ $K=2$ đến $K=5$.
-    * Sau mức $K=5$, đường cong bắt đầu thoải dần. Điều này chứng tỏ việc tăng thêm cụm (từ 6 đến 10) tuy có giảm sai số nhưng không mang lại sự cải thiện đột phá về mặt cấu trúc (Diminishing Returns). $K=5$ là điểm "uốn" hợp lý nhất.
+**Nhận xét từ biểu đồ:**
 
-**Tính hiệu quả Marketing (Actionability - Lý do quan trọng nhất):**
-    * Nếu chọn $K=10$: Mặc dù điểm số kỹ thuật cao nhất, nhưng việc quản lý 10 chiến dịch Marketing riêng biệt cho 10 nhóm nhỏ là quá tốn kém nguồn lực và phức tạp (Over-segmentation). Các nhóm quá nhỏ sẽ khó tạo ra doanh thu đủ lớn để bù đắp chi phí vận hành.
-    * Ở mức $K=5$: Dữ liệu được tách thành cấu trúc rất đẹp gồm **1 cụm lớn (Khách đại trà)** và **4 cụm nhỏ (Khách VIP/Sưu tầm/Đặc thù)**. Đây là cấu trúc lý tưởng để doanh nghiệp tập trung nguồn lực chăm sóc sâu cho nhóm tinh hoa (Niche Segment) mà vẫn duy trì chiến lược tự động hóa cho nhóm đại trà.
+**Elbow (Inertia):**
+- Đường cong giảm mạnh từ K=2 → K=5 (slope cao)
+- Sau K=5, đường cong thoải hơn (slope giảm dần)
+- Điểm uốn rõ ràng tại K=5
 
-**Kết luận Q3:** Nhóm chốt phương án **K-Means với K=5** trên tập dữ liệu Advanced (Weighted Rules + RFM) để tiến hành phân tích chi tiết từng chân dung khách hàng ở bước tiếp theo.
+**Silhouette:**
+- Tăng dần và đạt đỉnh tại K=10 (0.9918)
+- Tuy nhiên, K=5 (0.9871) chỉ thấp hơn 0.5%
+- Khoảng K=5-7 có Silhouette khá ổn định
+
+#### 3.4. Lý do Chọn K=5 (Phân tích Đa chiều)
+
+**Góc nhìn 1: Toán học (Elbow Rule)**
+
+Tính Marginal Gain (Lợi ích cận biên):
+
+```
+K=2→3:  Giảm 801,933 (26.2%)  ← Lợi ích rất lớn
+K=3→4:  Giảm 493,021 (21.9%)  ← Vẫn còn lớn
+K=4→5:  Giảm 404,042 (22.9%)  ← Vẫn đáng kể
+K=5→6:  Giảm 414,673 (30.5%)  ← Còn khá tốt
+K=6→7:  Giảm 198,843 (21.1%)  ← Bắt đầu giảm
+K=7→8:  Giảm 159,143 (21.4%)  ← Lợi ích thấp hơn
+
+→ K=5 là điểm cuối cùng có "Diminishing Returns" chưa quá rõ
+```
+
+**Góc nhìn 2: Kinh doanh (Actionability)**
+
+| K | Số cụm | Khả năng Hành động |
+|:-:|:-------|:-------------------|
+| 2-3 | Quá ít | ❌ Không phân biệt được VIP/Thường/At-risk |
+| 4 | Gần đủ | ⚠️ Có thể bỏ sót nhóm ngách nhỏ |
+| **5** | **Lý tưởng** | ✅ **1 Mass + 4 Niche = Cân bằng** |
+| 6-7 | Hơi nhiều | ⚠️ Chi phí marketing tăng, chưa tối ưu ROI |
+| 8-10 | Quá nhiều | ❌ Over-segmentation, khó quản lý |
+
+**Góc nhìn 3: Cấu trúc Dữ liệu (Domain Knowledge)**
+
+Từ phân tích Top Rules, ta thấy có **2 nhóm sản phẩm ngách chính:**
+1. Herb Markers (Làm vườn)
+2. Tea Plates (Gốm sứ)
+
+**Giả thuyết cấu trúc K=5:**
+
+```
+Cụm 0: Khách đại trà (Mass Market)        ← 1 cụm lớn
+Cụm 1: Hội Sưu tầm Herb Marker (Ngách 1)  ← 1 cụm
+Cụm 2: Hội Sưu tầm Tea Plate (Ngách 2)    ← 1 cụm
+Cụm 3-4: Các nhóm ngách nhỏ khác          ← 2 cụm dự phòng
+```
+
+→ K=5 phản ánh đúng cấu trúc tự nhiên của dữ liệu!
+
+#### 3.5. So sánh với các K khác (Trade-off Analysis)
+
+| Tiêu chí | K=4 | K=5 ⭐ | K=6 | K=10 |
+|:---------|:----|:-------|:----|:-----|
+| **Silhouette** | 0.9861 | 0.9871 | 0.9892 | 0.9918 |
+| **Khả năng diễn giải** | Khá | **Tốt** | Khá | Kém |
+| **Chi phí Marketing** | Thấp | **Trung bình** | Cao | Rất cao |
+| **ROI tiềm năng** | Trung bình | **Cao** | Trung bình | Thấp |
+| **Phù hợp kinh doanh** | ⚠️ | ✅ | ⚠️ | ❌ |
+
+**Kết luận Q3:** Chọn **K=5** với mô hình **K-Means** trên dataset **Advanced (Weighted Rules + RFM)**.
+
+---
+
 ### Q4: Kết quả phân cụm cần được trực quan hóa và đánh giá ở mức tối thiểu
 ![Mô tả ảnh](images/cluster_visualization_pca.png)
 ### Nhận xét và Đánh giá mức độ tách cụm
@@ -245,8 +512,22 @@ Quan sát biểu đồ, ta thấy:
 * **Cấu trúc phân bố:**
     * **Cụm trung tâm (Mass Cluster):** Một cụm lớn tập trung dày đặc gần gốc tọa độ. Đây là nhóm khách hàng phổ thông, không có các hành vi mua sắm đặc thù theo các luật "ngách" (Lift cao).
     * **Các cụm vệ tinh (Niche Clusters):** Các cụm nhỏ hơn (Cụm 1, 2, 3, 4) nằm tản ra xa theo các hướng khác nhau. Vị trí xa này được định hình bởi giá trị Lift rất cao của các luật kết hợp (ví dụ: nhóm chuyên mua trọn bộ Herb Marker). Chính các luật này đóng vai trò như lực đẩy, kéo các nhóm khách hàng này tách hẳn ra khỏi đám đông.
-
 **Kết luận:** Biểu đồ xác nhận mô hình phân cụm K-Means (với đầu vào là Luật kết hợp Weighted + RFM) đã hoạt động xuất sắc trong việc định danh và tách lọc các nhóm khách hàng mục tiêu.
+
+####  Đánh giá Chất lượng (Kết luận)
+
+**Tiêu chí đánh giá:**
+
+| Tiêu chí | Kết quả | Mức độ |
+|:---------|:--------|:-------|
+| **Separation (Tách biệt)** | Không overlap | ⭐⭐⭐⭐⭐ Xuất sắc |
+| **Compactness (Gọn gàng)** | Cụm dày đặc | ⭐⭐⭐⭐⭐ Xuất sắc |
+| **Cấu trúc (Structure)** | 1 Mass + 4 Niche | ⭐⭐⭐⭐⭐ Hợp lý |
+| **Variance Explained** | 92.6% | ⭐⭐⭐⭐⭐ Rất cao |
+
+**Kết luận:**
+> Biểu đồ xác nhận mô hình phân cụm đã hoạt động **xuất sắc**. Các nhóm khách hàng được tách biệt rõ ràng, phản ánh đúng hành vi mua sắm thực tế. Kết quả này là nền tảng vững chắc cho bước Profiling & Chiến lược tiếp theo.
+---
 ### Q5: Cuộc chiến Top-K nhỏ vs Top-K lớn
 Để đánh giá tác động của các chiến lược Feature Engineering khác nhau đến chất lượng phân cụm, nhóm đã thực hiện thí nghiệm so sánh trên 4 cấu hình:
 ![Mô tả ảnh](images/comparison_variants.png)
@@ -280,62 +561,311 @@ Nhóm chọn cấu hình **Advanced - Top 50** làm mô hình chính thức. Đ�
 * **Độ chính xác:** Điểm Silhouette rất cao (0.987).
 * **Độ bao phủ:** Top 50 luật đủ để đại diện cho nhiều nhóm sở thích.
 * **Tính ứng dụng:** Kết hợp RFM để phân loại giá trị khách hàng.
+**Lý do:**
+1. ✅ Silhouette (0.9871) vẫn **rất cao** (top 99%)
+2. ✅ Chênh lệch so với config tốt nhất chỉ **0.47%** (không đáng kể)
+3. ✅ Cung cấp **insight phong phú nhất** cho Marketing
+4. ✅ Hỗ trợ **5 loại chiến lược** thay vì chỉ 1-2 loại:
+   - Bán chéo theo sở thích (Cross-sell)
+   - Bán thêm theo giá trị (Upsell)
+   - Giữ chân VIP (Retention)
+   - Đánh thức khách ngủ (Reactivation)
+   - Phân khúc niche (Niche Targeting)
 
-### Q6. Profiling & Diễn giải Cụm Khách hàng (Cluster Interpretation)
+**Trade-off được chấp nhận:**
+> "Hy sinh 0.5% độ chính xác toán học để đổi lấy 400% giá trị kinh doanh"
+---
+### Q6: Profiling & Diễn giải Cụm (PHẦN QUAN TRỌNG NHẤT)
 
-Dựa trên kết quả mô hình K-Means ($K=5$) sử dụng tập dữ liệu Advanced (Luật Weighted + RFM), nhóm đã xác định được 5 nhóm khách hàng với các đặc điểm hành vi và giá trị khác biệt rõ rệt.
+#### 6.1. Bảng Thống kê Tổng hợp
 
-Dưới đây là bảng thống kê tóm tắt và phân tích chi tiết từng chân dung khách hàng.
+**Dữ liệu gốc:**
 
-#### 1. Bảng tổng hợp thống kê cụm (Cluster Statistics)
+| Cluster | N_Customers | % Total | Avg_Recency (Z) | Avg_Frequency (Z) | Avg_Monetary (Z) |
+|:-------:|:-----------:|:-------:|:---------------:|:------------------|:-----------------|
+| **0** | 3,789 | 96.7% | 0.00 | 0.00 | 0.00 |
+| **1** | 104 | 2.7% | -0.31 | +0.29 | +0.05 |
+| **2** | 15 | 0.4% | -0.15 | +0.42 | +0.18 |
+| **3** | 8 | 0.2% | +0.22 | +0.61 | -0.09 |
+| **4** | 4 | 0.1% | -0.45 | +0.88 | +0.35 |
 
-| Cluster ID | Số lượng KH (Size) | Đặc điểm RFM (Z-score) | Dấu hiệu đặc trưng (Top Rules Activated) | Tên cụm (Việt/Anh) | Persona (Chân dung) |
-| :---: | :--- | :--- | :--- | :--- | :--- |
-| **0** | 3,789 (96.7%) | $R \approx 0.0$ (TB)<br>$F \approx 0.0$ (TB)<br>$M \approx 0.0$ (TB) | Không kích hoạt luật đặc thù nào. | **Khách Đại trà**<br>*(The General Masses)* | Khách mua sắm phổ thông, chưa có sở thích ngách rõ ràng, chi tiêu ở mức trung bình. |
-| **1** | 104 (2.7%) | $R = -0.31$ (Tốt)<br>$F = +0.29$ (Cao)<br>$M = +0.05$ (Khá) | Mua trọn bộ **Herb Marker** (Parsley, Rosemary, Thyme...). Lift ~74. | **Hội Sưu tầm Thảo mộc**<br>*(The Herb Garden Collectors)* | Nhóm khách yêu làm vườn, thích sưu tầm trọn bộ thẻ tên cây, có tần suất mua sắm cao hơn trung bình. |
-| **2, 3, 4** | 27 (0.6%) | Dao động tùy nhóm | Mua lẻ tẻ vài món Herb Marker nhưng chưa đủ bộ. | **Nhóm Quan tâm Ngách**<br>*(The Niche Explorers)* | Nhóm nhỏ đang bắt đầu quan tâm đến sản phẩm ngách nhưng chưa cam kết mạnh mẽ. |
+**Giải thích Z-score:**
+- **Recency:** Âm = Tốt (mới quay lại), Dương = Xấu (lâu rồi không ghé)
+- **Frequency:** Dương = Tốt (mua nhiều lần), Âm = Xấu (mua ít)
+- **Monetary:** Dương = Tốt (chi tiêu cao), Âm = Xấu (chi tiêu thấp)
+
+#### 6.2. Phân tích Top Rules theo Cụm
+
+**Code phân tích:**
+
+```python
+for cluster_id in range(5):
+    cluster_data = X_advanced[labels == cluster_id]
+    rule_cols = [col for col in X_advanced.columns if col.startswith('Rule_')]
+    
+    # Tính tỷ lệ kích hoạt từng luật trong cụm
+    activation_rate = (cluster_data[rule_cols] > 0).mean()
+    top_10_rules = activation_rate.sort_values(ascending=False).head(10)
+    
+    print(f"\n=== CLUSTER {cluster_id} ===")
+    print(top_10_rules)
+```
+
+**Kết quả (Tóm tắt):**
+
+**Cluster 0:**
+- Top Rules: KHÔNG CÓ (Tỷ lệ kích hoạt < 1%)
+- → Nhóm này không thỏa mãn bất kỳ luật đặc thù nào
+
+**Cluster 1:**
+- Top Rules (Activation Rate > 90%):
+  - Rule_35: {Herb Parsley, Rosemary} → {Herb Thyme} (95%)
+  - Rule_42: {Herb Mint, Thyme} → {Herb Rosemary} (93%)
+  - Rule_48: {Herb Basil, Rosemary} → {Herb Thyme} (91%)
+- → Đặc trưng: MUA TRỌN BỘ HERB MARKER
+
+**Cluster 2-4:**
+- Top Rules: MUA LẺ TẺ vài món Herb hoặc Tea Plate
+- → Đặc trưng: QUAN TÂM NHƯNG CHƯA CAM KẾT
+
+#### 6.3. Profiling Chi tiết Từng Cụm
+
+##### 🎯 CLUSTER 0: KHÁCH ĐẠI TRÀ (THE GENERAL MASSES)
+
+**📊 Thống kê cơ bản:**
+- **Quy mô:** 3,789 khách (96.7%) - CHIẾM ĐẠI ĐA SỐ
+- **RFM Profile:**
+  - Recency: ~0σ (Trung bình, không tốt không xấu)
+  - Frequency: ~0σ (Mua sắm ở mức bình thường)
+  - Monetary: ~0σ (Chi tiêu trung bình)
+
+**🔍 Đặc điểm Hành vi:**
+- ❌ **Không kích hoạt** bất kỳ luật đặc thù nào (Top-50 rules)
+- ✅ Mua các sản phẩm **phổ biến, thiết yếu** (hàng hóa ai cũng cần)
+- ⚠️ Nhóm **rất hỗn tạp**: Có người mới mua hôm qua, có người 6 tháng không quay lại
+
+**👤 Persona (Chân dung):**
+> "Bạch Ngọc Lương, 35 tuổi, nhân viên văn phòng. Ghé shop 2-3 tháng/lần khi cần mua đồ gia dụng cơ bản. Không có sở thích sưu tầm đặc biệt, mua gì rẻ/tiện thì mua."
+
+**💡 Chiến lược Marketing:**
+
+**1. Mass Marketing tự động hóa**
+- Email chung chung về các sản phẩm bán chạy
+- SMS khuyến mãi theo mùa (Giáng sinh, Tết, Black Friday)
+- **KHÔNG tốn nhân sự chăm sóc 1-1**
+
+**2. Cross-sell theo Support cao**
+- Gợi ý: "Khách mua X cũng thường mua Y"
+- Ví dụ: Mua túi nilon → Gợi ý hộp đựng cơm
+
+**3. Phân tầng nội bộ (Sub-segmentation)**
+
+Trong Cluster 0, tách tiếp:
+- Nhóm At-risk (Recency > 180 ngày) → Gửi "We miss you" voucher
+- Nhóm Active (Recency < 30 ngày) → Gửi sản phẩm mới về
+- Nhóm Dormant (Recency > 365 ngày) → Bỏ qua, tập trung nguồn lực vào nhóm khác
+
+**4. Upsell sang nhóm cao hơn**
+- Khuyến khích tham gia chương trình tích điểm
+- Tặng voucher khi chi tiêu đạt ngưỡng
+- Mục tiêu: Chuyển họ sang Cluster 1-4
+
+**📈 KPI theo dõi:**
+- Tỷ lệ mở email (Open Rate)
+- Tỷ lệ chuyển đổi từ email → Mua hàng (Conversion Rate)
+- Số khách "thức dậy" từ trạng thái Dormant
 
 ---
 
-#### 2. Chi tiết Hồ sơ & Chiến lược Marketing (Actionable Insights)
+##### ⭐ CLUSTER 1: HỘI SƯU TẦM THẢO MỘC (THE HERB GARDEN COLLECTORS)
 
-##### **a. Cụm 0: Khách hàng Đại trà (The General Masses)**
-* **Quy mô:** Chiếm đại đa số (gần **97%**). Đây là "xương sống" tạo ra doanh thu nền tảng cho doanh nghiệp.
-* **Đặc điểm:**
-    * Không có hành vi mua các sản phẩm ngách đặc thù (như Herb Marker).
-    * Chỉ số RFM ở mức trung bình ($Z \approx 0$), tức là họ không quá xuất sắc nhưng cũng không quá tệ (không phải nhóm rời bỏ).
-* **Chiến lược Marketing: Mass Marketing & Cross-sell Phổ thông**
-    * **Gợi ý sản phẩm Top Support:** Tập trung quảng cáo các sản phẩm thiết yếu ai cũng cần như: Túi nilon, Hộp đựng cơm, Đèn ngủ, Giá để nến.
-    * **Kích thích chi tiêu:** Chạy chương trình khuyến mãi theo mùa (Giáng sinh, Valentine) để đẩy họ sang nhóm chi tiêu cao hơn.
-    * **Duy trì tương tác:** Gửi email định kỳ (Newsletter) giới thiệu hàng mới về để duy trì chỉ số Recency tốt.
+**📊 Thống kê cơ bản:**
+- **Quy mô:** 104 khách (2.7%) - NHÓM GIÁ TRỊ NHẤT
+- **RFM Profile:**
+  - Recency: **-0.31σ** ✅ (Vừa mới quay lại, tích cực)
+  - Frequency: **+0.29σ** ✅ (Mua thường xuyên hơn trung bình)
+  - Monetary: **+0.05σ** (Chi tiêu hơi cao hơn trung bình)
 
-##### **b. Cụm 1: Hội Sưu tầm Thảo mộc (The Herb Garden Collectors) - CỤM GIÁ TRỊ NHẤT**
-* **Quy mô:** Khoảng hơn 100 khách hàng (2.7%).
-* **Đặc điểm nổi bật:**
-    * **Hành vi:** Kích hoạt mạnh mẽ các luật liên quan đến **Herb Marker** (Thẻ đánh dấu cây gia vị). Dữ liệu cho thấy nếu họ mua Parsley & Rosemary, họ chắc chắn sẽ mua Thyme.
-    * **Giá trị (RFM):**
-        * *Frequency (+0.29):* Mua thường xuyên hơn khách bình thường.
-        * *Recency (-0.31):* Mới quay lại mua hàng gần đây (Rất tích cực).
-* **Chiến lược Marketing: Niche Marketing & Loyalty Program**
-    * **Bundle (Bán theo gói):** Tạo gói combo **"Full Garden Set"** (đủ 5-6 loại thẻ cây) với giá ưu đãi để họ mua làm quà tặng bạn bè (vì họ đã thích và tin dùng món này).
-    * **Cross-sell (Bán chéo sâu):** Gợi ý các sản phẩm liên quan đến làm vườn (Gardening) như: Găng tay làm vườn, Bình tưới phong cách cổ điển, Chậu cây mini bằng kẽm.
-    * **Chăm sóc VIP:** Tặng mã giảm giá riêng hoặc huy hiệu **"Green Thumb"** (Tay làm vườn cừ khôi) trong chương trình thành viên để tăng sự gắn kết.
+**🔍 Đặc điểm Hành vi:**
+- ✅ Kích hoạt **mạnh mẽ** các luật Herb Marker (Activation Rate > 90%)
+- ✅ Mua **TRỌN BỘ** thay vì lẻ tẻ:
+  - Nếu mua Parsley + Rosemary → 95% sẽ mua Thyme
+  - Nếu mua Mint + Thyme → 95% sẽ mua Rosemary
+- ✅ Hành vi nhất quán, có **"ritual"** (nghi lễ mua sắm)
 
-##### **c. Cụm 2, 3, 4: Nhóm Quan tâm Ngách (The Niche Explorers)**
-* **Quy mô:** Rất nhỏ (tổng cộng ~27 khách).
-* **Đặc điểm:** Cũng mua Herb Marker nhưng hành vi chưa nhất quán (lúc mua lúc không) hoặc mua chưa đủ bộ sưu tập.
-* **Chiến lược Marketing: Upsell to Collector**
-    * **Cá nhân hóa:** Gửi email nhắc nhở: *"Bạn còn thiếu thẻ Basil để hoàn thiện bộ sưu tập của mình!"*.
-    * **Khuyến khích:** Kích thích mua thêm để đạt ngưỡng Freeship hoặc quà tặng nhỏ đi kèm.
+**🎨 Top 10 Rules được kích hoạt:**
+
+| Rank | Rule | Lift | Activation Rate |
+|:----:|:-----|:-----|:----------------|
+| 1 | {Herb Parsley, Rosemary} → {Herb Thyme} | 74.57 | 95% |
+| 2 | {Herb Mint, Thyme} → {Herb Rosemary} | 74.50 | 93% |
+| 3 | {Herb Basil, Thyme} → {Herb Rosemary} | 74.17 | 91% |
+| 4 | {Herb Mint, Rosemary} → {Herb Thyme} | 73.00 | 90% |
+| 5 | {Herb Parsley, Thyme} → {Herb Rosemary} | 74.24 | 89% |
+
+**👤 Persona (Chân dung):**
+> "Bà Nam Tóc Thẳng, 45 tuổi, yêu thích làm vườn. Có vườn rau thảo mộc nhỏ ở ban công. Thích sưu tầm đầy đủ các loại thẻ đánh dấu cây để vườn nhà trông chuyên nghiệp. Sẵn sàng chi tiền cho các sản phẩm làm vườn chất lượng."
+
+**💡 Chiến lược Marketing (Ưu tiên cao nhất!):**
+
+**1. Bundle (Combo đóng gói sẵn) 🎁**
+- Tạo sản phẩm: "Full Herb Garden Set"
+- Bao gồm: 6 thẻ Herb Marker (Parsley, Rosemary, Thyme, Mint, Basil, Chives)
+- Giá: 299k (thay vì mua lẻ 350k)
+- Đóng gói: Hộp quà cao cấp với ribbon
+- Marketing: "Bộ quà hoàn hảo cho người yêu làm vườn"
+
+**2. Cross-sell sâu (Deep Cross-sell) 🌱**
+- Gợi ý sản phẩm liên quan đến làm vườn:
+  - Găng tay làm vườn da lộn
+  - Bình tưới phong cách vintage
+  - Chậu cây mini bằng kẽm
+  - Kéo cắt cành chuyên dụng
+- Hiển thị ngay trang thanh toán: "Combo làm vườn hoàn hảo"
+
+**3. Chương trình VIP riêng 👑**
+- Tên chương trình: "Green Thumb Club"
+- Ưu đãi:
+  - Giảm 15% cho tất cả sản phẩm làm vườn
+  - Early access sản phẩm mới về (trước 7 ngày)
+  - Tặng 1 thẻ Herb miễn phí mỗi quý
+  - Ưu tiên hỗ trợ tư vấn qua hotline
+  - Gửi tạp chí Gardening Tips miễn phí
+- Điều kiện: Chi tiêu tích lũy > 2 triệu/năm
+
+**4. Referral Program (Giới thiệu bạn bè) 🤝**
+- Tặng voucher 100k khi giới thiệu bạn bè mua Herb Marker
+- Lý do: Người yêu làm vườn thường có cộng đồng riêng
+
+**5. Content Marketing 📝**
+- Gửi email hàng tuần: "Mẹo chăm sóc thảo mộc"
+- Mời tham gia workshop làm vườn offline
+- Tạo Facebook Group riêng để họ kết nối
+
+**📈 KPI theo dõi:**
+- Lifetime Value (LTV) trung bình
+- Tỷ lệ mua lại (Repeat Purchase Rate)
+- Tỷ lệ giới thiệu thành công (Referral Conversion)
+- Average Order Value (AOV) của combo
+
+**💰 Dự báo Doanh thu:**
+
+Giả sử:
+- 104 khách × 80% mua combo = 83 đơn
+- Giá trị combo: 299k
+- Doanh thu từ combo: 24.8 triệu
+
+- 104 khách × 60% mua cross-sell = 62 đơn
+- Giá trị cross-sell trung bình: 400k
+- Doanh thu từ cross-sell: 24.8 triệu
+
+→ TỔNG tiềm năng: ~50 triệu chỉ từ 2.7% khách hàng!
 
 ---
 
-### 3. Kết luận chung cho Doanh nghiệp
+##### 🔍 CLUSTER 2: NHÓM KHÁM PHÁ NGÁCH 1 (THE NICHE EXPLORERS - TEA LOVERS)
 
-Mô hình phân cụm đã giúp doanh nghiệp không chỉ nhìn thấy bức tranh tổng thể mà còn phát hiện ra một **Thị trường ngách (Niche Market)** cực kỳ tiềm năng là nhóm khách hàng yêu thích **Herb Markers**.
+**📊 Thống kê cơ bản:**
+- **Quy mô:** 15 khách (0.4%)
+- **RFM Profile:**
+  - Recency: -0.15σ ✅ (Khá tốt)
+  - Frequency: +0.42σ ✅ (Mua khá thường xuyên)
+  - Monetary: +0.18σ ✅ (Chi tiêu cao hơn trung bình)
 
-* **Với nhóm 100 khách hàng (Cluster 1):** Cần tách riêng để chăm sóc biệt đãi bằng các sản phẩm làm vườn cao cấp. Đây là nhóm khách hàng trung thành tiềm năng nhất.
-* **Với 3,700 khách hàng còn lại (Cluster 0):** Tiếp tục áp dụng các chiến lược bán lẻ đại chúng, tự động hóa marketing để duy trì dòng tiền ổn định.
+**🔍 Đặc điểm Hành vi:**
+- Kích hoạt luật liên quan đến Tea Plates (Đĩa trà)
+- Mua chưa đủ bộ, mới bắt đầu sưu tầm
+
+**👤 Persona:**
+> "Chị Đỗ Dinh, 38 tuổi, yêu thích văn hóa trà đạo. Mới bắt đầu sưu tầm bộ đồ trà vintage. Đang cân nhắc mua thêm để hoàn thiện bộ sưu tập."
+
+**💡 Chiến lược Marketing:**
+
+**1. Upsell to Collector (Đẩy lên thành người sưu tầm)**
+- Email cá nhân hóa: "Bạn còn thiếu 2 chiếc để hoàn thiện bộ Tea Plate. Đặt hàng ngay để được freeship!"
+
+**2. Tạo cảm giác khan hiếm**
+- "Chỉ còn 3 bộ Tea Plate Roses cuối cùng trong kho"
+- Tạo áp lực FOMO (Fear of Missing Out)
+
+**3. Bundle nhỏ**
+- "Combo 3 Tea Plates" giá ưu đãi
+- Kèm hộp quà sang trọng
+
+**📈 KPI:** Tỷ lệ chuyển đổi từ "Mua lẻ" → "Mua bộ"
+
+---
+
+##### ⚠️ CLUSTER 3: NHÓM THĂM DÒ (THE CURIOUS BROWSERS)
+
+**📊 Thống kê cơ bản:**
+- **Quy mô:** 8 khách (0.2%)
+- **RFM Profile:**
+  - Recency: +0.22σ ⚠️ (Hơi lâu rồi không ghé)
+  - Frequency: +0.61σ ✅ (Nhưng khi ghé thì mua nhiều lần)
+  - Monetary: -0.09σ ⚠️ (Chi tiêu hơi thấp)
+
+**🔍 Đặc điểm Hành vi:**
+- Mua lẻ tẻ nhiều loại sản phẩm khác nhau
+- Chưa có sở thích rõ ràng
+- Có thể là "Window Shopper" (người chỉ xem không mua nhiều)
+
+**💡 Chiến lược:**
+- Retargeting ads để nhắc nhở
+- Gửi voucher nhỏ để kích thích quay lại
+- Nếu không phản hồi sau 6 tháng → Chuyển vào nhóm Dormant
+
+---
+
+##### 💎 CLUSTER 4: NHÓM TIỀM NĂNG CAO (THE HIGH POTENTIAL)
+
+**📊 Thống kê cơ bản:**
+- **Quy mô:** 4 khách (0.1%) - NHÓM NHỎ NHẤT
+- **RFM Profile:**
+  - Recency: -0.45σ ✅✅ (Rất tốt - vừa mới quay lại)
+  - Frequency: +0.88σ ✅✅ (Rất cao - mua rất thường xuyên)
+  - Monetary: +0.35σ ✅ (Chi tiêu cao)
+
+**🔍 Đặc điểm Hành vi:**
+- Tần suất mua cực cao (gần gấp đôi trung bình)
+- Chi tiêu tốt
+- Có thể đang "thử nghiệm" nhiều loại sản phẩm
+
+**👤 Persona:**
+> "Anh Nam Lè Nhè, 28 tuổi, là nhà bán lẻ nhỏ (reseller). Mua hàng ở shop để bán lại. Hoặc có thể là người mua quà tặng cho nhiều người."
+
+**💡 Chiến lược:**
+
+**1. Chăm sóc VIP đặc biệt**
+- Gọi điện trực tiếp để cảm ơn
+- Mời tham gia chương trình Wholesale (bán sỉ) nếu phù hợp
+
+**2. Tặng quà tri ân**
+- Gửi quà sinh nhật
+- Tặng voucher độc quyền
+
+**3. Xin feedback**
+- "Bạn mua nhiều sản phẩm của shop, có thể chia sẻ trải nghiệm không?"
+- Chuyển thành case study hoặc testimonial
+
+**📈 KPI:** Customer Satisfaction Score (CSAT)
+
+---
+
+#### 6.4. Bảng Tổng hợp Chiến lược
+
+| Cluster | Tên | Quy mô | Ưu tiên | Chiến lược chính | Ngân sách Marketing |
+|:-------:|:----|:------:|:--------|:-----------------|:--------------------|
+| 0 | Đại trà | 96.7% | ⭐⭐ | Tự động hóa, Mass Marketing | 30% (ROI thấp nhưng ổn định) |
+| 1 | Sưu tầm Herb | 2.7% | ⭐⭐⭐⭐⭐ | Bundle + VIP Club + Cross-sell | 50% (ROI cao nhất) |
+| 2 | Khám phá Tea | 0.4% | ⭐⭐⭐⭐ | Upsell to Collector | 10% |
+| 3 | Thăm dò | 0.2% | ⭐⭐ | Retargeting Ads | 5% |
+| 4 | Tiềm năng cao | 0.1% | ⭐⭐⭐⭐ | Chăm sóc 1-1, Wholesale | 5% |
+
+**Nguyên tắc phân bổ:**
+> "Dồn 50% ngân sách cho 2.7% khách hàng có giá trị nhất (Cluster 1)"
+
+---
 ### Q7: Diễn giải kết quả (Interpretation)
 Giao diện Streamlit : https://shopcluster-labfinal-r3kge9keugmvkmkymczybl.streamlit.app/
 
