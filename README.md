@@ -348,7 +348,7 @@ Việc chỉ số của biến thể Advanced thấp hơn nhẹ so với Baselin
     * Điều này tạo ra **sự đa dạng nội tại (variance)** trong dữ liệu. Ví dụ: Cùng là hai khách hàng mua "Sữa", nhưng khách hàng A chi tiêu nhiều tiền hơn khách hàng B.
     * Sự khác biệt về chi tiêu này khiến các điểm dữ liệu "tách nhau ra" một chút trong không gian, làm giảm nhẹ độ đặc của cụm, khiến điểm số giảm nhẹ từ 0.990 xuống 0.987.
 #### So sánh Kết quả (Preview Q5)
-
+![Mô tả ảnh](images/q5.png)
 **Thí nghiệm:** Chạy K-Means (K=5) trên cả 2 biến thể
 
 | Biến thể | Silhouette | Nhận xét |
