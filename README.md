@@ -561,6 +561,7 @@ Nhóm chọn cấu hình **Advanced - Top 50** làm mô hình chính thức. Đ�
 * **Độ chính xác:** Điểm Silhouette rất cao (0.987).
 * **Độ bao phủ:** Top 50 luật đủ để đại diện cho nhiều nhóm sở thích.
 * **Tính ứng dụng:** Kết hợp RFM để phân loại giá trị khách hàng.
+
 **Lý do:**
 1. ✅ Silhouette (0.9871) vẫn **rất cao** (top 99%)
 2. ✅ Chênh lệch so với config tốt nhất chỉ **0.47%** (không đáng kể)
